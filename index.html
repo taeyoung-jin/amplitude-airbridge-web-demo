@@ -86,7 +86,9 @@
     </div>
     <div class="row">
       <button class="sec" id="btn-ids">식별자 다시 확인</button>
+      <button class="sec" id="btn-reset">세션 초기화 (새 유저)</button>
     </div>
+    <p class="note">세션 초기화 = Amplitude reset(새 device_id/비회원) + Airbridge clearUser + alias 재매칭. 이후 트래킹 링크로 다시 들어오면 새 유저로 어트리뷰션이 다시 찍힙니다.</p>
   </div>
 
   <!-- 로그 -->
@@ -206,6 +208,21 @@ function sendEvent(kind) {
   }
 }
 
+// ===== 세션 초기화 (같은 브라우저에서 새 유저로 재어트리뷰션) =====
+function resetSession() {
+  if (!initialized) { log("먼저 '연동 초기화'를 하세요.", "warn"); return; }
+  // Amplitude: user_id 해제 + 새 device_id -> 신규 익명 유저로 전환
+  window.amplitude.reset();
+  // Airbridge: 유저 식별 해제
+  if (window.airbridge.clearUser) window.airbridge.clearUser();
+  // 새 device_id 로 alias 다시 매칭 후 추적 재시작
+  const newDid = window.amplitude.getDeviceId();
+  window.airbridge.setDeviceAlias("amplitude_device_id", newDid);
+  window.airbridge.startTracking();
+  log("세션 초기화 완료: 새 device_id=" + newDid + " (신규 유저). 이제 새 트래킹 링크로 들어오면 새 어트리뷰션이 찍힙니다.");
+  refreshStatus();
+}
+
 // ===== ① airbridge_referrer 감지·표시 (트래킹 링크로 들어왔는지 확인) =====
 function detectReferrer() {
   const raw = new URLSearchParams(location.search).get("airbridge_referrer");
@@ -237,6 +254,7 @@ function loadSavedConfig() {
 // ===== 바인딩 =====
 $("btn-init").onclick = () => { initIntegration().catch(e => log("초기화 오류: " + e, "warn")); };
 $("btn-ids").onclick = () => { refreshStatus(); log("식별자 상태 갱신"); };
+$("btn-reset").onclick = () => { resetSession(); };
 document.querySelectorAll("button[data-ev]").forEach(b => {
   b.onclick = () => sendEvent(b.getAttribute("data-ev"));
 });
