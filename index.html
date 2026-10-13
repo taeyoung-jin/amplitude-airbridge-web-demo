@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Amplitude x Airbridge (Web) 연동 데모</title>
+
+<!-- ① Amplitude Browser SDK (CDN) -->
+<script src="https://cdn.amplitude.com/libs/analytics-browser-2.45.10-min.js.gz"></script>
+
+<!-- ② Airbridge Web SDK 로더 (스니펫) -->
+<script>
+(function(a_,i_,r_,_b,_r,_i,_d,_g,_e){function r(b,a){function d(){var g=x(b,a);y(g)}if(_g>0){var e=a_.XDomainRequest?new a_.XDomainRequest:new a_.XMLHttpRequest,h=function(){};e.open("GET",a);e.timeout=_g;e.onload=d;e.onerror=h;e.onprogress=h;e.ontimeout=h;e.send()}else d()}function y(b){if(i_.readyState==="complete")i_.head.appendChild(b);else{var a=function(){a_.removeEventListener("load",a);i_.head.appendChild(b)};a_.addEventListener("load",a)}}function x(b,a){var d=i_.createElement(r_);d.async=!0;d.src=a;d.onerror=function(){return z(b)};return d}function z(b){b.queue.filter(function(a){return _d.indexOf(a[0])>=0}).forEach(function(a){a=a[1];a=a[a.length-1];typeof a==="function"&&a("Failed to load Airbridge SDK.")})}function t(b){var a={queue:b!=null?b:[],get isSDKEnabled(){return!1}};_i.concat(_d).forEach(function(d){var e=d.split("."),h=e.pop();e.reduce(function(g,m){var u;g[m]=(u=g[m])!=null?u:{};return g[m]},a)[h]=function(){a.queue.push([d,arguments])}});return a}a_.__AIRBRIDGE__!=null||(a_.__AIRBRIDGE__={mocks:[]});typeof i_.documentMode!=="undefined"&&(_r=_r.replace(/^https:/,""));a_.createAirbridge=function(){var b=t();var a;(a=a_.__AIRBRIDGE__)==null||a.mocks.push(b);r(b,_r);return b};a_[_b]||(a_[_b]=t(_e),r(a_[_b],_r))})(
+  window, document, "script", "airbridge",
+  "https://static.airbridge.io/sdk/latest/airbridge.min.js",
+  ["init","setBanner","setDeeplinks","openDeeplink"],
+  ["events.send","setUserId","setUserAlias","setUserEmail","setUserPhone","setUserAttributes","setDeviceAlias","clearUser","startTracking","fetchResource","setDownloads","setDownloadConversionEvent"]
+);
+</script>
+
+<style>
+  :root{ --ink:#1b2230; --muted:#6b7280; --line:#e5e7eb; --accent:#2a5bd0; --ok:#1a7f4b; --warn:#b45309;
+    --code-bg:#1e2430; --code-ink:#e7ecf3; }
+  *{box-sizing:border-box}
+  body{margin:0;background:#fff;color:var(--ink);font-family:-apple-system,"Apple SD Gothic Neo","Pretendard",system-ui,sans-serif;line-height:1.5;padding:24px 16px}
+  .wrap{max-width:760px;margin:0 auto}
+  h1{font-size:1.3rem;margin:0 0 4px}
+  .sub{color:var(--muted);font-size:.9rem;margin:0 0 18px}
+  .card{border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
+  .card h2{font-size:.8rem;letter-spacing:.04em;text-transform:uppercase;color:var(--accent);margin:0 0 10px}
+  label{display:block;font-size:.78rem;color:var(--muted);margin:8px 0 3px}
+  input{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:.9rem;font-family:ui-monospace,monospace}
+  .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  button{flex:1;min-width:120px;padding:10px;border:0;border-radius:8px;background:var(--accent);color:#fff;font-size:.9rem;font-weight:600;cursor:pointer}
+  button.sec{background:#eef1f6;color:var(--ink)}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  .status{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:.82rem;font-family:ui-monospace,monospace}
+  .status .k{color:var(--muted)}
+  pre.log{background:var(--code-bg);color:var(--code-ink);border-radius:10px;padding:12px;font-size:.76rem;font-family:ui-monospace,monospace;max-height:280px;overflow:auto;white-space:pre-wrap;word-break:break-all}
+  .note{font-size:.8rem;color:var(--muted);margin-top:8px}
+  .ok{color:var(--ok)} .warn{color:var(--warn)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Amplitude x Airbridge (Web) 연동 데모</h1>
+  <p class="sub">MMP(Airbridge) 어트리뷰션을 Amplitude 로 연결. 핵심은 <b>Amplitude device_id 를 Airbridge device alias 로 매칭</b>하는 것.</p>
+
+  <!-- 설정 -->
+  <div class="card">
+    <h2>1. 설정 (대시보드에서 발급)</h2>
+    <label>Amplitude API Key</label>
+    <input id="amp-key" placeholder="YOUR_AMPLITUDE_API_KEY">
+    <label>Airbridge App Name</label>
+    <input id="ab-app" placeholder="taeyoungjin">
+    <label>Airbridge Web Token</label>
+    <input id="ab-token" placeholder="YOUR_AIRBRIDGE_WEB_TOKEN">
+    <div class="row">
+      <button id="btn-init">연동 초기화</button>
+    </div>
+    <p class="note">초기화 순서: Amplitude init(await) → device_id 획득 → Airbridge init(autoStart off) → setDeviceAlias → startTracking</p>
+  </div>
+
+  <!-- 상태 -->
+  <div class="card">
+    <h2>2. 식별자 상태</h2>
+    <div class="status">
+      <div class="k">진입 채널 (referrer)</div><div id="st-channel">-</div>
+      <div class="k">Amplitude device_id</div><div id="st-did">-</div>
+      <div class="k">Airbridge alias</div><div id="st-alias">-</div>
+      <div class="k">Amplitude user_id</div><div id="st-uid">-</div>
+      <div class="k">초기화</div><div id="st-init">아직 안 함</div>
+    </div>
+  </div>
+
+  <!-- 액션 -->
+  <div class="card">
+    <h2>3. 어트리뷰션 확인 - 이벤트 전송</h2>
+    <p class="note">Airbridge 이벤트를 보내면 V2 연동으로 Amplitude 에 어트리뷰션(User Property)과 함께 전달됩니다.</p>
+    <div class="row">
+      <button class="sec" data-ev="signin">로그인</button>
+      <button class="sec" data-ev="signup">회원가입</button>
+      <button class="sec" data-ev="cart">장바구니 담기</button>
+      <button class="sec" data-ev="order">구매 완료</button>
+      <button class="sec" data-ev="custom">커스텀 이벤트</button>
+    </div>
+    <div class="row">
+      <button class="sec" id="btn-ids">식별자 다시 확인</button>
+    </div>
+  </div>
+
+  <!-- 로그 -->
+  <div class="card">
+    <h2>4. 로그</h2>
+    <pre class="log" id="log">여기에 동작 로그가 표시됩니다.</pre>
+  </div>
+</div>
+
+<script>
+// ===== 설정값 (대시보드에서 발급: 입력창 또는 아래 기본값) =====
+const CONFIG = {
+  amplitudeApiKey: "",   // 입력창에서 채움
+  airbridgeApp:   "",
+  airbridgeToken: "",
+};
+
+const $ = (id) => document.getElementById(id);
+const logEl = $("log");
+function log(msg, cls) {
+  const t = new Date().toLocaleTimeString("ko-KR");
+  const line = `[${t}] ${msg}`;
+  logEl.textContent = line + "\n" + logEl.textContent;
+  if (cls) { /* 색 구분은 생략 - 콘솔에도 남김 */ }
+  console.log(line);
+}
+
+let initialized = false;
+
+// ===== 핵심: 연동 초기화 (식별자 매칭) =====
+async function initIntegration() {
+  CONFIG.amplitudeApiKey = $("amp-key").value.trim();
+  CONFIG.airbridgeApp    = $("ab-app").value.trim();
+  CONFIG.airbridgeToken  = $("ab-token").value.trim();
+  if (!CONFIG.amplitudeApiKey || !CONFIG.airbridgeApp || !CONFIG.airbridgeToken) {
+    log("설정값(Amplitude API Key / Airbridge App / Web Token)을 모두 입력하세요.", "warn");
+    return;
+  }
+  if (initialized) { log("이미 초기화됨."); return; }
+
+  // 설정값을 localStorage 에 저장 -> 다음 방문(트래킹 링크 랜딩) 시 자동 초기화에 사용.
+  // 저장되는 값은 클라이언트 노출용 토큰(Amplitude API Key, Airbridge Web Token)뿐이다.
+  localStorage.setItem("ampAbConfig", JSON.stringify(CONFIG));
+
+  // ① Amplitude 초기화 - device_id 가 생성될 때까지 init 프로미스를 기다린다.
+  await window.amplitude.init(CONFIG.amplitudeApiKey, {
+    autocapture: { sessions: true, pageViews: true, attribution: true }
+  }).promise;
+
+  // ② Amplitude device_id 획득
+  const amplitudeDeviceId = window.amplitude.getDeviceId();
+  log("Amplitude 초기화 완료. device_id = " + amplitudeDeviceId);
+
+  // ③ Airbridge 초기화 - 자동 추적 끄고(alias 설정 후 수동 시작) 초기화
+  window.airbridge.init({
+    app: CONFIG.airbridgeApp,
+    webToken: CONFIG.airbridgeToken,
+    autoStartTrackingEnabled: false,
+  });
+
+  // ④ Amplitude device_id 를 Airbridge device alias 로 등록 (연동의 핵심)
+  window.airbridge.setDeviceAlias("amplitude_device_id", amplitudeDeviceId);
+  log("Airbridge setDeviceAlias('amplitude_device_id', '" + amplitudeDeviceId + "')");
+
+  // ⑤ Airbridge 추적 시작
+  window.airbridge.startTracking();
+  log("Airbridge startTracking() 호출");
+
+  initialized = true;
+  refreshStatus();
+  $("st-init").textContent = "완료";
+  $("st-init").className = "ok";
+}
+
+function refreshStatus() {
+  const did = (window.amplitude && window.amplitude.getDeviceId) ? window.amplitude.getDeviceId() : null;
+  const uid = (window.amplitude && window.amplitude.getUserId) ? window.amplitude.getUserId() : null;
+  $("st-did").textContent = did || "-";
+  $("st-alias").textContent = did ? ("amplitude_device_id = " + did) : "-";
+  $("st-uid").textContent = uid || "(비회원)";
+}
+
+// ===== 이벤트 전송 (Airbridge -> V2 연동 -> Amplitude) =====
+function sendEvent(kind) {
+  if (!initialized) { log("먼저 '연동 초기화'를 하세요.", "warn"); return; }
+  const ab = window.airbridge;
+  switch (kind) {
+    case "signin": {
+      const userId = "web_user_01";
+      window.amplitude.setUserId(userId);          // 이벤트 전송 전에 user_id 먼저
+      ab.events.send("airbridge.user.signin");
+      log("로그인: setUserId('" + userId + "') + airbridge signin 전송");
+      refreshStatus();
+      break;
+    }
+    case "signup":
+      ab.events.send("airbridge.user.signup");
+      log("회원가입(signup) 전송");
+      break;
+    case "cart":
+      ab.events.send("airbridge.ecommerce.product.addedToCart", {
+        customAttributes: { product_id: "SKU-1001", source: "web-demo" }
+      });
+      log("장바구니 담기(addedToCart) 전송");
+      break;
+    case "order":
+      ab.events.send("airbridge.ecommerce.order.completed", {
+        semanticAttributes: { totalValue: 39000, currency: "KRW" },
+        customAttributes: { order_id: "ORDER-" + Date.now() }
+      });
+      log("구매 완료(order.completed) 전송 (KRW 39000)");
+      break;
+    case "custom":
+      ab.events.send("test_action", { customAttributes: { tapped_at: new Date().toISOString() } });
+      log("커스텀 이벤트(test_action) 전송");
+      break;
+  }
+}
+
+// ===== ① airbridge_referrer 감지·표시 (트래킹 링크로 들어왔는지 확인) =====
+function detectReferrer() {
+  const raw = new URLSearchParams(location.search).get("airbridge_referrer");
+  if (!raw) {
+    $("st-channel").textContent = "(직접 진입 - 트래킹 링크 아님)";
+    return null;
+  }
+  // airbridge_referrer 값 내부도 key=value& 형태 (한 번 더 디코딩)
+  const inner = new URLSearchParams(decodeURIComponent(raw));
+  const channel = inner.get("channel") || "(채널 없음)";
+  const campaign = inner.get("campaign");
+  $("st-channel").textContent = channel + (campaign ? (" / " + campaign) : "");
+  log("트래킹 링크 진입 감지: channel=" + channel + (campaign ? (", campaign=" + campaign) : ""));
+  return channel;
+}
+
+// ===== 설정 복원 =====
+function loadSavedConfig() {
+  try {
+    const saved = JSON.parse(localStorage.getItem("ampAbConfig") || "null");
+    if (!saved) return null;
+    $("amp-key").value = saved.amplitudeApiKey || "";
+    $("ab-app").value  = saved.airbridgeApp || "";
+    $("ab-token").value = saved.airbridgeToken || "";
+    return saved;
+  } catch (_) { return null; }
+}
+
+// ===== 바인딩 =====
+$("btn-init").onclick = () => { initIntegration().catch(e => log("초기화 오류: " + e, "warn")); };
+$("btn-ids").onclick = () => { refreshStatus(); log("식별자 상태 갱신"); };
+document.querySelectorAll("button[data-ev]").forEach(b => {
+  b.onclick = () => sendEvent(b.getAttribute("data-ev"));
+});
+
+// ===== ② 페이지 로드 시: referrer 감지 + 저장된 설정 있으면 자동 초기화 =====
+window.addEventListener("load", () => {
+  detectReferrer();
+  const saved = loadSavedConfig();
+  if (saved && saved.amplitudeApiKey && saved.airbridgeApp && saved.airbridgeToken) {
+    log("저장된 설정으로 자동 초기화 시도...");
+    initIntegration().catch(e => log("자동 초기화 오류: " + e, "warn"));
+  } else {
+    log("설정값을 입력하고 '연동 초기화'를 누르세요. (최초 1회 후 자동 초기화됨)");
+  }
+});
+</script>
+</body>
+</html>
